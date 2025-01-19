@@ -16,6 +16,28 @@ def log_http_response(response):
 def get_text_message_input(recipient, text):
     return json.dumps(
         {
+            # "messaging_product": "whatsapp",
+            # "to": recipient,
+            # "type": "interactive",
+            # "interactive": {
+            #     "type": "button",
+            #     "header": {"type": "text", "text": "Selecciona una opción:"},
+            #     "body": {"text": "Elige entre las siguientes opciones:"},
+            #     "footer": {"text": "Gracias por usar nuestro servicio."},
+            #     "action": {
+            #         "buttons": [
+            #             {
+            #                 "type": "reply",
+            #                 "reply": {"id": "opcion_1", "title": "Opción 1"},
+            #             },
+            #             {
+            #                 "type": "reply",
+            #                 "reply": {"id": "opcion_2", "title": "Opción 2"},
+            #             },
+            #         ]
+            #     },
+            # },
+            
             "messaging_product": "whatsapp",
             "recipient_type": "individual",
             "to": recipient,
@@ -76,11 +98,12 @@ def process_text_for_whatsapp(text):
 
 
 def process_whatsapp_message(body):
+    
     wa_id = body["entry"][0]["changes"][0]["value"]["contacts"][0]["wa_id"]
     name = body["entry"][0]["changes"][0]["value"]["contacts"][0]["profile"]["name"]
 
     message = body["entry"][0]["changes"][0]["value"]["messages"][0]
-    message_body = message["text"]["body"]
+    message_body = message["text"]["body"] # ESTE ES EL MENSAJE QUE SE RECIBE DEL USUARIO
 
     # TODO: implement custom function here
     response = generate_response(message_body)

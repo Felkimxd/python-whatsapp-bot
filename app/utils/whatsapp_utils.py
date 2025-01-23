@@ -6,6 +6,8 @@ import requests
 from app.services.groq_service import generate_response
 import re
 
+mensajes_memoria = 0
+
 
 def log_http_response(response):
     logging.info(f"Status: {response.status_code}")
@@ -13,38 +15,71 @@ def log_http_response(response):
     logging.info(f"Body: {response.text}")
 
 
-def get_text_message_input(recipient, text):
-    return json.dumps(
-        {
-            # "messaging_product": "whatsapp",
-            # "to": recipient,
-            # "type": "interactive",
-            # "interactive": {
-            #     "type": "button",
-            #     "header": {"type": "text", "text": "Selecciona una opción:"},
-            #     "body": {"text": "Elige entre las siguientes opciones:"},
-            #     "footer": {"text": "Gracias por usar nuestro servicio."},
-            #     "action": {
-            #         "buttons": [
-            #             {
-            #                 "type": "reply",
-            #                 "reply": {"id": "opcion_1", "title": "Opción 1"},
-            #             },
-            #             {
-            #                 "type": "reply",
-            #                 "reply": {"id": "opcion_2", "title": "Opción 2"},
-            #             },
-            #         ]
-            #     },
-            # },
-            
-            "messaging_product": "whatsapp",
-            "recipient_type": "individual",
-            "to": recipient,
-            "type": "text",
-            "text": {"preview_url": False, "body": text},
-        }
-    )
+def get_text_message_input(recipient, text, data_assign):
+
+    boton_Ubicacion = {
+        "messaging_product": "whatsapp",
+        "recipient_type": "individual",
+        "to": recipient,
+        "type": "location",
+        "location": {
+            "latitude": "0.34835031513615755",
+            "longitude": "-78.12011524887379",
+            "name": "Foto Click",
+            "address": "Juan de Velasco 8-33 y José Joaquin de Olmedo",
+        },
+    }
+
+    menu_interactivo = {
+        "messaging_product": "whatsapp",
+        "recipient_type": "individual",
+        "to": recipient,
+        "type": "interactive",
+        "interactive": {
+            "type": "list",
+            "header": {"type": "text", "text": "Escoja una opcion para ser atendido"},
+            "body": {"text": "Servicios/Productos"},
+            "footer": {"text": "Foto Click tú Solución"},
+            "action": {
+                "sections": [
+                    {
+                        "title": "Productos",
+                        "rows": [
+                            {
+                                "id": "10",
+                                "title": "Camisetas",
+                                "description": "Camisetas personalizables",
+                            },
+                            {
+                                "id": "5",
+                                "title": "Jarros",
+                                "description": "Jarros personalizables",
+                            },
+                        ],
+                    }
+                ],
+                "button": "Escoja un producto",
+            },
+        },
+    }
+    mensaje_texto = {
+        "messaging_product": "whatsapp",
+        "recipient_type": "individual",
+        "to": recipient,
+        "type": "text",
+        "text": {"preview_url": False, "body": text},
+    }
+
+    if data_assign == "Mensaje":
+        return json.dumps(mensaje_texto)
+    elif data_assign == "Ubicacion":
+        return json.dumps(boton_Ubicacion)
+    elif data_assign == "Menu":
+        return json.dumps(menu_interactivo)
+
+    # return json.dumps(botones_inicio)
+
+    #
 
 
 # def generate_response(response):
@@ -98,21 +133,57 @@ def process_text_for_whatsapp(text):
 
 
 def process_whatsapp_message(body):
-    
+
+    global mensajes_memoria
+
     wa_id = body["entry"][0]["changes"][0]["value"]["contacts"][0]["wa_id"]
     name = body["entry"][0]["changes"][0]["value"]["contacts"][0]["profile"]["name"]
+    context = body["entry"][0]["changes"][0]["value"]["messages"][0]['type']
 
-    message = body["entry"][0]["changes"][0]["value"]["messages"][0]
-    message_body = message["text"]["body"] # ESTE ES EL MENSAJE QUE SE RECIBE DEL USUARIO
+    if context == 'text':
+        message = body["entry"][0]["changes"][0]["value"]["messages"][0]
+        message_body = message["text"]["body"]  # ESTE ES EL MENSAJE QUE SE RECIBE DEL USUARIO
+
+    elif context == 'interactive':
+        message_body = ""
+        id_interaccion = message = body["entry"][0]["changes"][0]["value"]["messages"][0]["interactive"]["list_reply"]["id"]
+        interaccion_entera = int(id_interaccion)
 
     # TODO: implement custom function here
-    response = generate_response(message_body)
 
-    # OpenAI Integration
-    # response = generate_response(message_body, wa_id, name)
-    # response = process_text_for_whatsapp(response)
+    if mensajes_memoria == 0:
 
-    data = get_text_message_input(current_app.config["RECIPIENT_WAID"], response)
+        response, data_assign = generate_response(message_body, mensajes_memoria)
+        data = get_text_message_input(current_app.config["RECIPIENT_WAID"], response, data_assign)
+        send_message(data)
+        mensajes_memoria += 1
+        message_body = ""
+        response, data_assign = generate_response(message_body, mensajes_memoria)
+        data = get_text_message_input(current_app.config["RECIPIENT_WAID"], response, data_assign)
+        send_message(data)
+        mensajes_memoria += 1
+
+    elif interaccion_entera == 10:
+        message_body = ""
+        response, data_assign = generate_response(
+            message_body, mensajes_memoria, interaccion_entera)
+        data = get_text_message_input(current_app.config["RECIPIENT_WAID"], response, data_assign)
+        send_message(data)
+
+
+def send_followup_message(recipient_wa_id, message_body, indicador=None):
+    """
+    Envía un mensaje adicional al usuario de WhatsApp.
+
+    Args:
+        recipient_wa_id (str): ID de WhatsApp del destinatario.
+        message_body (str): Contenido del mensaje a enviar.
+        indicador (str, optional): Tipo de mensaje si se requiere personalización adicional.
+    """
+    # Prepara los datos del mensaje
+    data = get_text_message_input(recipient_wa_id, message_body, indicador)
+
+    # Envía el mensaje utilizando la función existente
     send_message(data)
 
 
